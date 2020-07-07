@@ -1,2 +1,2 @@
-# Google_Landmark_-Retrieval_2020
-Google_Landmark_ Retrieval_2020
+# Google_Landmark_Retrieval_2020
+Google_Landmark_Retrieval_2020
