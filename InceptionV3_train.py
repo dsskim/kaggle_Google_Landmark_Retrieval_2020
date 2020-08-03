@@ -18,10 +18,11 @@ print("Tensorflow version " + tf.__version__)
 AUTO = tf.data.experimental.AUTOTUNE
 SKIP_VALIDATION = True
 BATCH_SIZE = 16
-EPOCHS = 7
-IMAGE_NORM_MODE = 0  # 0: 0 ~ 1, 1: -1 ~ 1
+EPOCHS = 10
+IMAGE_NORM_MODE = 1  # 0: 0 ~ 1, 1: -1 ~ 1
 IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
+WEIGHT_DECAY = 0.0005
 
 train_tfrec_dir = "E:/open_dataset/landmark_v2/tfrec/train*"
 valid_tfrec_dir = "E:/open_dataset/landmark_v2/tfrec/valid*"
@@ -308,10 +309,14 @@ class AdaCos(Layer):
 
 
 with strategy.scope():
-    backbone = tf.keras.applications.InceptionV3(include_top=False, weights='imagenet', input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3], classifier_activation=None)
-    backbone.trainable = True
+    backbone = tf.keras.applications.InceptionV3(include_top=False, weights='imagenet', input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+    
+    for layer in backbone.layers:
+        layer.trainable = True
+        if hasattr(layer, 'kernel_regularizer'):
+            setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
 
-    loss_model = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(0.01))
+    loss_model = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
     
     model = tf.keras.Sequential([
         backbone,
@@ -321,49 +326,25 @@ with strategy.scope():
         loss_model
     ])
     
-model.compile(optimizer=tf.keras.optimizers.Adam(lr=0.0001),
-             loss = loss_model.loss,  
+model.compile(optimizer=tf.keras.optimizers.SGD(learning_rate=tf.keras.experimental.CosineDecay(initial_learning_rate=0.001, decay_steps=EPOCHS), momentum=0.9),
+             loss = loss_model.loss,
              metrics=[loss_model.accuracy])
 
 model.summary()
 
-LR_START = 0.00001
-LR_MAX = 0.00005 * strategy.num_replicas_in_sync
-LR_MIN = LR_START
-LR_RAMPUP_EPOCHS = 1
-LR_SUSTAIN_EPOCHS = 0
-LR_EXP_DECAY = .5
-
-def lrfn(epoch):
-    if epoch < LR_RAMPUP_EPOCHS:
-        lr = (LR_MAX - LR_START) / LR_RAMPUP_EPOCHS * epoch + LR_START
-    elif epoch < LR_RAMPUP_EPOCHS + LR_SUSTAIN_EPOCHS:
-        lr = LR_MAX
-    else:
-        lr = (LR_MAX - LR_MIN) * LR_EXP_DECAY**(epoch - LR_RAMPUP_EPOCHS - LR_SUSTAIN_EPOCHS) + LR_MIN
-    return lr
-    
-lr_callback = tf.keras.callbacks.LearningRateScheduler(lrfn, verbose=True)
-
-rng = [i for i in range(EPOCHS)]
-y = [lrfn(x) for x in rng]
-print("Learning rate schedule: {:.3g} to {:.3g} to {:.3g}".format(y[0], max(y), y[-1]))
-
 class ModelSaveCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
-        keys = list(logs.keys())
-        print("End epoch {} of training; got log keys: {}".format(epoch, keys))
+        os.makedirs('./output', exist_ok=True)
         
         if not SKIP_VALIDATION:
-            model.save_weights('./epoch_{0}_train_acc_{1:.3f}_val_acc_{2:.3f}.h5'.format(epoch, logs['accuracy'], logs['val_accuracy']))
+            model.save_weights('./output/epoch_{0}_train_acc_{1:.3f}_val_acc_{2:.3f}.h5'.format(epoch, logs['accuracy'], logs['val_accuracy']))
         else:
-            model.save_weights('./epoch_{0}_train_acc_{1:.3f}.h5'.format(epoch, logs['accuracy']))
+            model.save_weights('./output/epoch_{0}_train_acc_{1:.3f}.h5'.format(epoch, logs['accuracy']))
             
 history = model.fit(
     get_dataset(TRAINING_FILENAMES), 
     steps_per_epoch=STEPS_PER_EPOCH,
     epochs=EPOCHS,
-    callbacks=[lr_callback, ModelSaveCallback()],
-    # callbacks=[ModelSaveCallback()],
+    callbacks=[ModelSaveCallback()],
     validation_data=None if SKIP_VALIDATION else get_dataset(VALIDATION_FILENAMES, validation=True)
 )
