@@ -292,7 +292,7 @@ with strategy.scope():
     ], name='Landmark_Retrieval_2020_Model_{}'.format(backbone.name))
     
 entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 0.0001),
-            experimental_steps_per_execution = 50,
+            experimental_steps_per_execution = 10,
             loss = loss_model.loss,
             metrics = [loss_model.accuracy])
 
@@ -336,6 +336,7 @@ class ModelSaveCallback(tf.keras.callbacks.Callback):
 
         served_function = m.call
         tf.saved_model.save(m, export_dir='gs://landmark-train-set/output_{}'.format(entire_model.layers[0].name) + '/epoch_{0}_train_acc_{1:.3f}'.format(epoch, logs['accuracy']), signatures={'serving_default': served_function})
+        entire_model.save_weights('gs://landmark-train-set/output_{0}/epoch_{1}_train_acc_{2:.3f}.h5'.format(entire_model.layers[0].name, epoch, logs['accuracy']))
 
 LR_START = 0.0001
 LR_MAX = 0.0005 * strategy.num_replicas_in_sync

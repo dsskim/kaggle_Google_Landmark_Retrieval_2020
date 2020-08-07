@@ -24,7 +24,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 WEIGHT_DECAY = 0.0005
 
-TPU_IP = '10.240.1.10'
+TPU_IP = '10.240.1.2'
 
 train_tfrec_dir = 'gs://landmark-train-set/tfrec/train*'
 valid_tfrec_dir = "gs://landmark-train-set/tfrec/valid*"
@@ -279,7 +279,7 @@ class AdaCos(Layer):
 
 
 with strategy.scope():
-    backbone = tf.keras.applications.ResNet152V2(include_top=False, weights='imagenet', input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+    backbone = tf.keras.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
     
     loss_model = AdaCos(NUM_TRAIN_LABEL)
     
@@ -292,7 +292,7 @@ with strategy.scope():
     ], name='Landmark_Retrieval_2020_Model_{}'.format(backbone.name))
     
 entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 0.0001),
-            experimental_steps_per_execution = 50,
+            experimental_steps_per_execution = 10,
             loss = loss_model.loss,
             metrics = [loss_model.accuracy])
 
@@ -302,7 +302,6 @@ class ModelSaveCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         
         feature_extractor = Model(inputs=entire_model.inputs, outputs=entire_model.get_layer('batchnorm').output)
-        entire_model.summary()
         feature_extractor.summary()
 
         class MyModel(tf.keras.Model):
@@ -336,6 +335,7 @@ class ModelSaveCallback(tf.keras.callbacks.Callback):
 
         served_function = m.call
         tf.saved_model.save(m, export_dir='gs://landmark-train-set/output_{}'.format(entire_model.layers[0].name) + '/epoch_{0}_train_acc_{1:.3f}'.format(epoch, logs['accuracy']), signatures={'serving_default': served_function})
+        entire_model.save_weights('gs://landmark-train-set/output_{0}/epoch_{1}_train_acc_{2:.3f}.h5'.format(entire_model.layers[0].name, epoch, logs['accuracy']))
 
 LR_START = 0.0001
 LR_MAX = 0.0005 * strategy.num_replicas_in_sync
