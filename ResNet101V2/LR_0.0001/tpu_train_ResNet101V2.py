@@ -27,7 +27,7 @@ WEIGHT_DECAY = 0.0005
 TPU_IP = '10.240.1.2'
 
 train_tfrec_dir = 'gs://landmark-train-set/tfrec/train*'
-valid_tfrec_dir = "gs://landmark-train-set/tfrec/valid*"
+valid_tfrec_dir = 'gs://landmark-train-set/tfrec/valid*'
 
 TRAINING_FILENAMES = tf.io.gfile.glob(train_tfrec_dir)
 VALIDATION_FILENAMES = tf.io.gfile.glob(valid_tfrec_dir)
@@ -292,7 +292,6 @@ with strategy.scope():
     ], name='Landmark_Retrieval_2020_Model_{}'.format(backbone.name))
     
 entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 0.0001),
-            experimental_steps_per_execution = 10,
             loss = loss_model.loss,
             metrics = [loss_model.accuracy])
 
@@ -301,41 +300,43 @@ entire_model.summary()
 class ModelSaveCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         
-        feature_extractor = Model(inputs=entire_model.inputs, outputs=entire_model.get_layer('batchnorm').output)
-        feature_extractor.summary()
+        # feature_extractor = Model(inputs=entire_model.inputs, outputs=entire_model.get_layer('batchnorm').output)
+        # feature_extractor.summary()
 
-        class MyModel(tf.keras.Model):
-            def __init__(self, model):
-                super(MyModel, self).__init__()
-                self.model = model
-                self.model.trainable = False
+        # class MyModel(tf.keras.Model):
+        #     def __init__(self, model):
+        #         super(MyModel, self).__init__()
+        #         self.model = model
+        #         self.model.trainable = False
             
-            @tf.function(input_signature=[
-            tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')
-            ])
-            def call(self, input_image):
-                output_tensors = {}
+        #     @tf.function(input_signature=[
+        #     tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')
+        #     ])
+        #     def call(self, input_image):
+        #         output_tensors = {}
                 
-                # resizing
-                image = tf.image.resize_with_pad(input_image, IMAGE_MAX_SIZE, IMAGE_MAX_SIZE)
+        #         # resizing
+        #         image = tf.image.resize_with_pad(input_image, IMAGE_MAX_SIZE, IMAGE_MAX_SIZE)
                 
-                # preprocessing
-                image = tf.cast(image, tf.float32)
-                if IMAGE_NORM_MODE == 0:
-                    image = tf.math.divide(image, 255.0)
-                else:
-                    image = tf.math.divide(tf.subtract(image, 127.5), 127.5)
+        #         # preprocessing
+        #         image = tf.cast(image, tf.float32)
+        #         if IMAGE_NORM_MODE == 0:
+        #             image = tf.math.divide(image, 255.0)
+        #         else:
+        #             image = tf.math.divide(tf.subtract(image, 127.5), 127.5)
                 
-                extracted_features = self.model(tf.convert_to_tensor([image]))
-                features = tf.math.l2_normalize(extracted_features[0])
-                output_tensors['global_descriptor'] = tf.identity(features, name='global_descriptor')
-                return output_tensors
+        #         extracted_features = self.model(tf.convert_to_tensor([image]))
+        #         features = tf.math.l2_normalize(extracted_features[0])
+        #         output_tensors['global_descriptor'] = tf.identity(features, name='global_descriptor')
+        #         return output_tensors
 
-        m = MyModel(feature_extractor) #creating our model instance
+        # m = MyModel(feature_extractor) #creating our model instance
 
-        served_function = m.call
-        tf.saved_model.save(m, export_dir='gs://landmark-train-set/output_{}'.format(entire_model.layers[0].name) + '/epoch_{0}_train_acc_{1:.3f}'.format(epoch, logs['accuracy']), signatures={'serving_default': served_function})
-        entire_model.save_weights('gs://landmark-train-set/output_{0}/epoch_{1}_train_acc_{2:.3f}.h5'.format(entire_model.layers[0].name, epoch, logs['accuracy']))
+        # served_function = m.call
+        # tf.saved_model.save(m, export_dir='gs://landmark-train-set/output_{}'.format(entire_model.layers[0].name) + '/epoch_{0}_train_acc_{1:.3f}'.format(epoch, logs['accuracy']), signatures={'serving_default': served_function})
+        
+        os.makedirs('./output_{}'.format(entire_model.layers[0].name), exist_ok=True)
+        entire_model.save_weights('./output_{0}/epoch_{1}_train_acc_{2:.3f}.h5'.format(entire_model.layers[0].name, epoch, logs['accuracy']))
 
 LR_START = 0.0001
 LR_MAX = 0.0005 * strategy.num_replicas_in_sync
