@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = "./InceptioinResNetV2/LR_0.0001/output_inception_resnet_v2_1/epoch_9_train_acc_0.739.h5"
+WEIGHT_PATH = "./InceptioinResNetV2/LR_0.00001_weight_decay_0.0005/5_output_inception_resnet_v2/epoch_9_train_acc_0.743.h5"
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -93,13 +93,13 @@ class AdaCos(Layer):
 
 backbone = tf.keras.applications.InceptionResNetV2(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
 
-# for layer in backbone.layers:
-#         layer.trainable = True
-#         if hasattr(layer, 'kernel_regularizer'):
-#             setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
+for layer in backbone.layers:
+        layer.trainable = True
+        if hasattr(layer, 'kernel_regularizer'):
+            setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
 
-# loss_model = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
-loss_model = AdaCos(NUM_TRAIN_LABEL)
+loss_model = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
+# loss_model = AdaCos(NUM_TRAIN_LABEL)
 
 entire_model = tf.keras.Sequential([
     backbone,
@@ -120,9 +120,7 @@ class MyModel(tf.keras.Model):
         self.model = model
         self.model.trainable = False
     
-    @tf.function(input_signature=[
-      tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')
-    ])
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')])
     def call(self, input_image):
         output_tensors = {}
         
@@ -141,8 +139,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(
-      m, export_dir="./my_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./my_model", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
