@@ -10,7 +10,7 @@ import tensorflow_probability as tfp
 IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
-WEIGHT_PATH = "./ResNet152V2/LR_0.00001_weight_decay_0.0005/output_resnet152v2/epoch_9_train_acc_0.692.h5"
+WEIGHT_PATH = "./ResNet152V2/LR_0.00001_weight_decay_0.0005_fine_tune/6_2_output_resnet152v2/epoch_9_train_acc_0.756.h5"
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -124,9 +124,7 @@ class MyModel(tf.keras.Model):
         self.model = model
         self.model.trainable = False
     
-    @tf.function(input_signature=[
-      tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')
-    ])
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 3], dtype=tf.uint8, name='input_image')])
     def call(self, input_image):
         output_tensors = {}
         
@@ -145,8 +143,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(
-      m, export_dir="./my_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./6_2_resnet152v2_finetune", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
