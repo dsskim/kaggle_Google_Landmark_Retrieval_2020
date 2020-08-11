@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = "./InceptioinResNetV2/LR_0.00001_weight_decay_0.0005/5_output_inception_resnet_v2/epoch_9_train_acc_0.743.h5"
+WEIGHT_PATH = "./InceptioinResNetV2/LR=0.00001_weight_decay_0.0005_semi-adacos/7_output_inception_resnet_v2/epoch_9_train_acc_0.741.h5"
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -72,6 +72,12 @@ class AdaCos(Layer):
     
     def get_logits(self, y_true, y_pred):
         logits = y_pred
+
+        theta = tf.acos(K.clip(logits, -1.0 + K.epsilon(), 1.0 - K.epsilon()))
+        theta_class = theta[y_true == 1]
+        theta_med = tfp.stats.percentile(theta_class, q=50)
+
+        self.s.assign(tf.math.log(self.n_classes - 1.0) / tf.cos(tf.minimum(math.pi / 4.0, theta_med)))
 
         logits = self.s * logits
         out = tf.nn.softmax(logits)
@@ -139,7 +145,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./my_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./7_output_inception_resnet_v2", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
