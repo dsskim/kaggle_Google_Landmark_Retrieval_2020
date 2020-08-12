@@ -292,7 +292,7 @@ with strategy.scope():
         loss_model
     ], name='Landmark_Retrieval_2020_Model_{}'.format(backbone.name))
     
-entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = tf.keras.experimental.CosineDecay(LR_START, EPOCHS)),
+entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = tf.keras.experimental.CosineDecay(LR_START, STEPS_PER_EPOCH * EPCOCHS)),
             experimental_steps_per_execution = 50,
             loss = loss_model.loss,
             metrics = [loss_model.accuracy])
