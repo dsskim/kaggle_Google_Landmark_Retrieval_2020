@@ -1,5 +1,13 @@
 # Google_Landmark_Retrieval_2020
 ---
+## Training Environment
+- Google Cloud
+  - VM instance: n1-standard-1(1 vCPU, 3.75GB memory), tensorflow 2.3
+  - TPU: v3-8
+  - Storage: Google Cloud Storage
+
+
+---
 ## Result
 
 ### Single Model
