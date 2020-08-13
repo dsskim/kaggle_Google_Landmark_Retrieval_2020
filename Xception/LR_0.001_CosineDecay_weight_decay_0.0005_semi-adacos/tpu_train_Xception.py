@@ -24,9 +24,9 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 WEIGHT_DECAY = 0.0005
 
-LR_START = 0.00001
+LR_START = 0.001
 
-TPU_IP = '10.240.1.2'
+TPU_IP = '10.240.1.18'
 
 train_tfrec_dir = 'gs://landmark-train-set/tfrec/train*'
 valid_tfrec_dir = "gs://landmark-train-set/tfrec/valid*"
@@ -274,74 +274,6 @@ class AdaCos(Layer):
         return (input_shape[0], self.n_classes)
 
 
-class ArcFace(Layer):
-    def __init__(self, n_classes=10, regularizer=None, **kwargs):
-        super(AdaCos, self).__init__(**kwargs)
-        self.n_classes = n_classes
-        self.regularizer = regularizers.get(regularizer)
-
-    def build(self, input_shape):
-        super(AdaCos, self).build(input_shape)
-        self.W = self.add_weight(name='W',
-                                shape=(input_shape[-1], self.n_classes),
-                                initializer='glorot_uniform',
-                                trainable=True,
-                                regularizer=self.regularizer)
-        self.s = tf.Variable(tf.math.sqrt(2.0)*tf.math.log(self.n_classes - 1.0), trainable=False, aggregation=tf.VariableAggregation.MEAN)
-
-    def __init__(self, n_classes, margin=0.5, regularizer=None, **kwargs):
-        super(ArcFace, self).__init__(**kwargs)
-        self.n_classes = n_classes
-        self.margin = margin
-        self.s = math.sqrt(2.0)*math.log(self.n_classes - 1.0)
-        self.regularizer = regularizers.get(regularizer)
-
-    def build(self, input_shape):
-        super(ArcFace, self).build(input_shape)  # Be sure to call this at the end
-        self.W = self.add_weight(name='W',
-                                shape=(input_shape[-1], self.n_classes),
-                                initializer='glorot_uniform',
-                                trainable=True,
-                                regularizer=self.regularizer)
-        self.cos_m = tf.identity(tf.cos(self.margin), name='cos_m')
-        self.sin_m = tf.identity(tf.sin(self.margin), name='sin_m')
-        self.th = tf.identity(tf.cos(math.pi - self.margin), name='th')
-        self.mm = tf.multiply(self.sin_m, self.margin, name='mm')
-
-    def call(self, inputs):
-        # normalize feature
-        x = tf.nn.l2_normalize(inputs, axis=1, name='norm_embeddings')
-        # normalize weights
-        W = tf.nn.l2_normalize(self.W, axis=0, name='norm_loss_weights')
-        # dot product
-        logits = x @ W
-        
-        return logits
-
-    def get_logits(self, y_true, y_pred):
-        sin_t = tf.sqrt(1. - y_pred ** 2, name='sin_t')
-        cos_mt = tf.subtract(y_pred * self.cos_m, sin_t * self.sin_m, name='cos_mt')
-        cos_mt = tf.where(y_pred > self.th, cos_mt, y_pred - self.mm)
-        logits = tf.where(y_true == 1., cos_mt, y_pred)
-        logits = tf.multiply(logits, self.s, 'arcface_logist')
-        out = tf.nn.softmax(logits)
-
-        return out
-
-    def loss(self, y_true, y_pred):
-        logits = self.get_logits(y_true, y_pred)
-        loss = tf.keras.losses.categorical_crossentropy(y_true, logits)
-        return loss
-
-    def accuracy(self, y_true, y_pred):
-        logits = self.get_logits(y_true, y_pred)
-        accuracy = tf.keras.metrics.categorical_accuracy(y_true, logits)
-        return accuracy
-    
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.n_classes)
-
-
 with strategy.scope():
     backbone = tf.keras.applications.Xception(include_top=False, weights='imagenet', input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
         
@@ -350,7 +282,7 @@ with strategy.scope():
         if hasattr(layer, 'kernel_regularizer'):
             setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
 
-    loss_model = ArcFace(NUM_TRAIN_LABEL, margin=0.5, regularizer=regularizers.l2(WEIGHT_DECAY))
+    loss_model = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
     
     entire_model = tf.keras.Sequential([
         backbone,
@@ -360,7 +292,7 @@ with strategy.scope():
         loss_model
     ], name='Landmark_Retrieval_2020_Model_{}'.format(backbone.name))
     
-entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = 0.0001),
+entire_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate = tf.keras.experimental.CosineDecay(LR_START, STEPS_PER_EPOCH * EPOCHS)),
             experimental_steps_per_execution = 50,
             loss = loss_model.loss,
             metrics = [loss_model.accuracy])
@@ -372,27 +304,10 @@ class ModelSaveCallback(tf.keras.callbacks.Callback):
         os.makedirs('./output_{}'.format(entire_model.layers[0].name), exist_ok=True)
         entire_model.save_weights('./output_{0}/epoch_{1}_train_acc_{2:.3f}.h5'.format(entire_model.layers[0].name, epoch, logs['accuracy']))
 
-LR_MAX = 0.00005 * strategy.num_replicas_in_sync
-LR_MIN = LR_START
-LR_RAMPUP_EPOCHS = 2
-LR_SUSTAIN_EPOCHS = 0
-LR_EXP_DECAY = .5
-
-def lrfn(epoch):
-    if epoch < LR_RAMPUP_EPOCHS:
-        lr = (LR_MAX - LR_START) / LR_RAMPUP_EPOCHS * epoch + LR_START
-    elif epoch < LR_RAMPUP_EPOCHS + LR_SUSTAIN_EPOCHS:
-        lr = LR_MAX
-    else:
-        lr = (LR_MAX - LR_MIN) * LR_EXP_DECAY**(epoch - LR_RAMPUP_EPOCHS - LR_SUSTAIN_EPOCHS) + LR_MIN
-    return lr
-    
-lr_callback = tf.keras.callbacks.LearningRateScheduler(lrfn, verbose=True)
-
 history = entire_model.fit(
     get_dataset(TRAINING_FILENAMES), 
     steps_per_epoch=STEPS_PER_EPOCH,
     epochs=EPOCHS,
-    callbacks=[lr_callback, ModelSaveCallback()],
+    callbacks=[ModelSaveCallback()],
     validation_data=None if SKIP_VALIDATION else get_dataset(VALIDATION_FILENAMES, validation=True)
 )
