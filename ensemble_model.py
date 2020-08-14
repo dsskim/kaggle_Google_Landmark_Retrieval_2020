@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = ['./ensemble_model_weight/epoch_9_train_acc_0.739.h5', './ensemble_model_weight/epoch_9_train_acc_0.743.h5', './ensemble_model_weight/epoch_9_train_acc_0.741.h5']
+WEIGHT_PATH = ['./ensemble_model_weight/4_epoch_9_train_acc_0.739.h5', './ensemble_model_weight/5_epoch_9_train_acc_0.743.h5', './ensemble_model_weight/8_epoch_9_train_acc_0.796.h5', './ensemble_model_weight/9_epoch_19_train_acc_0.851.h5']
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -100,12 +100,20 @@ loss_model_2 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY)
 backbone_3 = tf.keras.applications.InceptionResNetV2(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
 loss_model_3 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
 
+backbone_4 = tf.keras.applications.Xception(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+loss_model_4 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
+
 for layer in backbone_2.layers:
         layer.trainable = True
         if hasattr(layer, 'kernel_regularizer'):
             setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
 
 for layer in backbone_3.layers:
+        layer.trainable = True
+        if hasattr(layer, 'kernel_regularizer'):
+            setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
+
+for layer in backbone_4.layers:
         layer.trainable = True
         if hasattr(layer, 'kernel_regularizer'):
             setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
@@ -138,19 +146,31 @@ model_3 = tf.keras.Sequential([
 ])
 model_3.load_weights(WEIGHT_PATH[2])
 
+model_4 = tf.keras.Sequential([
+    backbone_4,
+    Generalized_mean_pooling2D(),
+    Dense(EMBEDDING_SIZE, name='fc'),
+    BatchNormalization(name='batchnorm'),
+    loss_model_4
+])
+model_4.load_weights(WEIGHT_PATH[3])
+
 
 feature_extractor_1 = Model(inputs=model_1.inputs, outputs=model_1.get_layer('batchnorm').output)
 feature_extractor_2 = Model(inputs=model_2.inputs, outputs=model_2.get_layer('batchnorm').output)
 feature_extractor_3 = Model(inputs=model_3.inputs, outputs=model_3.get_layer('batchnorm').output)
+feature_extractor_4 = Model(inputs=model_4.inputs, outputs=model_4.get_layer('batchnorm').output)
 
 feature_extractor_1.summary()
 feature_extractor_2.summary()
 feature_extractor_3.summary()
+feature_extractor_4.summary()
 
 models = []
 models.append(feature_extractor_1)
 models.append(feature_extractor_2)
 models.append(feature_extractor_3)
+models.append(feature_extractor_4)
 
 class MyModel(tf.keras.Model):
     def __init__(self, models):
@@ -187,7 +207,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(models)
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./457_ensemble_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./4589_ensemble_model", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
