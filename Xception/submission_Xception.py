@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = "./Xception/LR=0.00001_weight_decay_0.0005_semi-adacos/epoch_19_train_acc_0.851.h5"
+WEIGHT_PATH = "./Xception/16_xceptionepoch_19_train_acc_0.908.h5"
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -144,7 +144,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./9_output_xception", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./16_output_xception", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
