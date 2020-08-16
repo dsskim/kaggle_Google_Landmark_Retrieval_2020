@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = ['./ensemble_model_weight/4_epoch_9_train_acc_0.739.h5', './ensemble_model_weight/5_epoch_9_train_acc_0.743.h5', './ensemble_model_weight/8_epoch_9_train_acc_0.796.h5', './ensemble_model_weight/9_epoch_19_train_acc_0.851.h5']
+WEIGHT_PATH = ['./ensemble_model_weight/9_output_xception_epoch_19_train_acc_0.851.h5', './ensemble_model_weight/11_output_densenet201_epoch_19_train_acc_0.818.h5', './ensemble_model_weight/15_output_xception_epoch_19_train_acc_0.878.h5', './ensemble_model_weight/16_output_xception_epoch_19_train_acc_0.908.h5']
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -73,6 +73,12 @@ class AdaCos(Layer):
     def get_logits(self, y_true, y_pred):
         logits = y_pred
 
+        theta = tf.acos(K.clip(logits, -1.0 + K.epsilon(), 1.0 - K.epsilon()))
+        theta_class = theta[y_true == 1]
+        theta_med = tfp.stats.percentile(theta_class, q=50)
+
+        self.s.assign(tf.math.log(self.n_classes - 1.0) / tf.cos(tf.minimum(math.pi / 4.0, theta_med)))
+
         logits = self.s * logits
         out = tf.nn.softmax(logits)
 
@@ -91,17 +97,22 @@ class AdaCos(Layer):
     def compute_output_shape(self, input_shape):
         return (input_shape[0], self.n_classes)
 
-backbone_1 = tf.keras.applications.InceptionResNetV2(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
-loss_model_1 = AdaCos(NUM_TRAIN_LABEL)
+backbone_1 = tf.keras.applications.Xception(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+loss_model_1 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
 
-backbone_2 = tf.keras.applications.InceptionResNetV2(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+backbone_2 = tf.keras.applications.DenseNet201(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
 loss_model_2 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
 
-backbone_3 = tf.keras.applications.InceptionResNetV2(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
+backbone_3 = tf.keras.applications.Xception(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
 loss_model_3 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
 
 backbone_4 = tf.keras.applications.Xception(include_top=False, weights=None, input_shape=[IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, 3])
 loss_model_4 = AdaCos(NUM_TRAIN_LABEL, regularizer=regularizers.l2(WEIGHT_DECAY))
+
+for layer in backbone_1.layers:
+        layer.trainable = True
+        if hasattr(layer, 'kernel_regularizer'):
+            setattr(layer, 'kernel_regularizer', tf.keras.regularizers.l2(WEIGHT_DECAY))
 
 for layer in backbone_2.layers:
         layer.trainable = True
@@ -155,7 +166,6 @@ model_4 = tf.keras.Sequential([
 ])
 model_4.load_weights(WEIGHT_PATH[3])
 
-
 feature_extractor_1 = Model(inputs=model_1.inputs, outputs=model_1.get_layer('batchnorm').output)
 feature_extractor_2 = Model(inputs=model_2.inputs, outputs=model_2.get_layer('batchnorm').output)
 feature_extractor_3 = Model(inputs=model_3.inputs, outputs=model_3.get_layer('batchnorm').output)
@@ -207,7 +217,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(models)
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./4589_ensemble_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./9_11_15_16_ensemble_model", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 

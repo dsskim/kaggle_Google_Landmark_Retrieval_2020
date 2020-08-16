@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = "./DenseNet201/LR=0.00001_weight_decay_0.0005_semi-adacos/11_output_densenet201_epoch_19_train_acc_0.818.h5"
+WEIGHT_PATH = "./DenseNet201/LR_0.0001_CosineDecay_weight_decay_0.0005_semi-adacos/17_output_densenet201_epoch_18_train_acc_0.889.h5"
 
 class Generalized_mean_pooling2D(Layer):
     def __init__(self, p=3, epsilon=1e-6, **kwargs):
@@ -143,7 +143,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./11_output_densenet201", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./17_output_densenet201", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 

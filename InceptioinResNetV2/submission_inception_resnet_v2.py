@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = "./InceptioinResNetV2/LR_0.0001_CosineDecay_weight_decay_0.0005_semi-adacos/8_output_inception_resnet_v2"
+WEIGHT_PATH = "./InceptioinResNetV2/LR_0.0001_CosineDecay_weight_decay_0.0005_semi-adacos_E_20"
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -114,7 +114,7 @@ entire_model = tf.keras.Sequential([
     BatchNormalization(name='batchnorm'),
     loss_model
 ])
-weights_path = tf.io.gfile.glob(WEIGHT_PATH + '/*')[-1]
+weights_path = tf.io.gfile.glob(WEIGHT_PATH + '/*.h5')[-1]
 entire_model.load_weights(weights_path)
 
 feature_extractor = Model(inputs=entire_model.inputs, outputs=entire_model.get_layer('batchnorm').output)
@@ -146,7 +146,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(feature_extractor) #creating our model instance
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./8_output_inception_resnet_v2", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./14_output_inception_resnet_v2", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
