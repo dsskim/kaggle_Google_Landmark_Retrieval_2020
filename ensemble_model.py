@@ -11,7 +11,7 @@ IMAGE_MAX_SIZE = 441
 EMBEDDING_SIZE = 512
 NUM_TRAIN_LABEL = 81313
 WEIGHT_DECAY = 0.0005
-WEIGHT_PATH = ['./ensemble_model_weight/9_output_xception_epoch_19_train_acc_0.851.h5', './ensemble_model_weight/11_output_densenet201_epoch_19_train_acc_0.818.h5', './ensemble_model_weight/15_output_xception_epoch_19_train_acc_0.878.h5', './ensemble_model_weight/16_output_xception_epoch_19_train_acc_0.908.h5']
+WEIGHT_PATH = ['./ensemble_model_weight/9_output_xception_epoch_19_train_acc_0.851.h5', './ensemble_model_weight/17_output_densenet201_epoch_19_train_acc_0.894.h5', './ensemble_model_weight/15_output_xception_epoch_19_train_acc_0.878.h5', './ensemble_model_weight/16_output_xception_epoch_19_train_acc_0.908.h5']
 
 
 class Generalized_mean_pooling2D(Layer):
@@ -217,7 +217,7 @@ class MyModel(tf.keras.Model):
 m = MyModel(models)
 
 served_function = m.call
-tf.saved_model.save(m, export_dir="./9_11_15_16_ensemble_model", signatures={'serving_default': served_function})
+tf.saved_model.save(m, export_dir="./9_15_16_17_ensemble_model", signatures={'serving_default': served_function})
 
 # from zipfile import ZipFile
 
